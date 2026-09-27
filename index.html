@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ticket Verification</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h2 { color: #4da6ff; text-align: center; margin-bottom: 20px; }
+    #reader {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #333;
+      background: #000;
+      min-height: 250px;
+    }
+    .btn {
+      width: 100%;
+      max-width: 400px;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background-color: #28a745;
+      color: white;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    #result-card {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      margin-top: 20px;
+      padding: 20px;
+      border-radius: 12px;
+      box-sizing: border-box;
+    }
+    .status-valid { background-color: #1b3a22; border: 2px solid #2e7d32; }
+    .status-invalid { background-color: #3e1a1a; border: 2px solid #c62828; }
+    .label { font-size: 12px; color: #aaa; text-transform: uppercase; margin-top: 10px; }
+    .value { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+    .action-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 15px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background-color: #1a73e8;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Ticket Verification</h2>
+  
+  <button id="start-btn" class="btn" onclick="startScanner()">🎥 Start Camera</button>
+  
+  <div id="reader"></div>
+
+  <div id="result-card">
+    <div class="label">Guest Name</div>
+    <div id="res-name" class="value">-</div>
+
+    <div class="label">Total Tickets Booked</div>
+    <div id="res-count" class="value">-</div>
+
+    <div class="label">Payment Status</div>
+    <div id="res-payment" class="value">-</div>
+
+    <div class="label">Scanned Code</div>
+    <div id="res-code" class="value" style="font-family: monospace;">-</div>
+
+    <button class="action-btn" onclick="resetScanner()">Scan Next Ticket</button>
+  </div>
+
+  <script>
+    // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE:
+    const API_URL = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+    let html5QrCode;
+
+    function startScanner() {
+      document.getElementById('start-btn').style.display = 'none';
+      
+      html5QrCode = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      
+      html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        onScanSuccess
+      ).catch(err => {
+        alert("Camera Error: " + err);
+        document.getElementById('start-btn').style.display = 'block';
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      if (html5QrCode) {
+        html5QrCode.pause(true);
+      }
+      
+      // Send request to Apps Script API
+      fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ ticketCode: decodedText })
+      })
+      .then(res => res.json())
+      .then(data => displayResult(data, decodedText))
+      .catch(err => handleError(err));
+    }
+
+    function displayResult(data, scannedText) {
+      const card = document.getElementById('result-card');
+      card.style.display = 'block';
+
+      if (data.success) {
+        card.className = 'status-valid';
+        document.getElementById('res-name').innerText = data.name;
+        document.getElementById('res-count').innerText = data.ticketCount + ' Guest(s)';
+        document.getElementById('res-payment').innerText = data.paymentConfirmed;
+        document.getElementById('res-code').innerText = scannedText;
+      } else {
+        card.className = 'status-invalid';
+        document.getElementById('res-name').innerText = 'INVALID TICKET';
+        document.getElementById('res-count').innerText = '-';
+        document.getElementById('res-payment').innerText = '-';
+        document.getElementById('res-code').innerText = data.message || scannedText;
+      }
+    }
+
+    function handleError(err) {
+      alert('Network / Sheet Error: ' + err.message);
+      resetScanner();
+    }
+
+    function resetScanner() {
+      document.getElementById('result-card').style.display = 'none';
+      if (html5QrCode) {
+        html5QrCode.resume();
+      }
+    }
+  </script>
+</body>
+</html>
