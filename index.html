@@ -116,16 +116,17 @@
       if (html5QrCode) {
         html5QrCode.pause(true);
       }
-      
-      // Send request to Apps Script API
-      fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ ticketCode: decodedText })
-      })
-      .then(res => res.json())
-      .then(data => displayResult(data, decodedText))
-      .catch(err => handleError(err));
+  
+      // Construct GET URL with ticket code query parameter
+      const requestUrl = API_URL + "?ticketCode=" + encodeURIComponent(decodedText);
+    
+      fetch(requestUrl)
+        .then(res => {
+          if (!res.ok) throw new Error("HTTP error " + res.status);
+          return res.json();
+        })
+        .then(data => displayResult(data, decodedText))
+        .catch(err => handleError(err));
     }
 
     function displayResult(data, scannedText) {
