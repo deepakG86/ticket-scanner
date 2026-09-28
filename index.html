@@ -52,10 +52,42 @@
     .status-invalid { background-color: #3e1a1a; border: 2px solid #c62828; }
     .label { font-size: 12px; color: #aaa; text-transform: uppercase; margin-top: 10px; }
     .value { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+
+    /* Check-In Controls */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      margin-top: 15px;
+      background: rgba(255,255,255,0.08);
+      padding: 12px;
+      border-radius: 8px;
+    }
+    .toggle-container input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      margin-right: 12px;
+      cursor: pointer;
+    }
+    .toggle-container label {
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .comment-box {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 6px;
+      border: 1px solid #555;
+      background-color: #222;
+      color: #fff;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
     .action-btn {
       width: 100%;
       padding: 14px;
-      margin-top: 15px;
+      margin-top: 12px;
       font-size: 16px;
       font-weight: bold;
       border: none;
@@ -63,6 +95,15 @@
       background-color: #1a73e8;
       color: white;
       cursor: pointer;
+    }
+    .action-btn.secondary {
+      background-color: #444;
+    }
+    #save-status {
+      margin-top: 8px;
+      font-size: 14px;
+      color: #81c784;
+      text-align: center;
     }
   </style>
 </head>
@@ -87,14 +128,28 @@
     <div class="label">Scanned Code</div>
     <div id="res-code" class="value" style="font-family: monospace;">-</div>
 
-    <button class="action-btn" onclick="resetScanner()">Scan Next Ticket</button>
+    <div id="checkin-section">
+      <div class="toggle-container">
+        <input type="checkbox" id="checkin-checkbox">
+        <label for="checkin-checkbox">Checked In</label>
+      </div>
+
+      <div class="label">Comment / Partial Guest Note</div>
+      <input type="text" id="comment-input" class="comment-box" placeholder="e.g. 3/5 guests checked in">
+
+      <button id="save-btn" class="action-btn" onclick="saveCheckIn()">💾 Save Status & Comment</button>
+      <div id="save-status"></div>
+    </div>
+
+    <button class="action-btn secondary" onclick="resetScanner()">Scan Next Ticket</button>
   </div>
 
   <script>
-    // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE:
+    // PASTE YOUR APPS SCRIPT WEB APP URL HERE:
     const API_URL = "https://script.google.com/macros/s/AKfycbxQCTfTj1hUYNS68EJaPyDLTI7fSnME6N11g3rrgNf58Bc2YNiNMppMimRBAQFKRzy8uA/exec";
 
     let html5QrCode;
+    let currentTicketCode = "";
 
     function startScanner() {
       document.getElementById('start-btn').style.display = 'none';
@@ -117,28 +172,19 @@
         html5QrCode.pause(true);
       }
       
-      const requestUrl = API_URL + "?ticketCode=" + encodeURIComponent(decodedText);
-    
-      fetch(requestUrl, {
-        method: "GET",
-        redirect: "follow"
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Server responded with status " + response.status);
-        }
-        return response.json();
-      })
-      .then(data => displayResult(data, decodedText))
-      .catch(err => {
-        alert("Connection Error: " + err.message + "\n\nEnsure Web App access is set to 'Anyone' and permissions are authorized in Apps Script.");
-        resetScanner();
-      });
+      currentTicketCode = decodedText;
+      const requestUrl = API_URL + "?action=check&ticketCode=" + encodeURIComponent(decodedText);
+
+      fetch(requestUrl)
+        .then(res => res.json())
+        .then(data => displayResult(data, decodedText))
+        .catch(err => handleError(err));
     }
 
     function displayResult(data, scannedText) {
       const card = document.getElementById('result-card');
       card.style.display = 'block';
+      document.getElementById('save-status').innerText = "";
 
       if (data.success) {
         card.className = 'status-valid';
@@ -146,13 +192,50 @@
         document.getElementById('res-count').innerText = data.ticketCount + ' Guest(s)';
         document.getElementById('res-payment').innerText = data.paymentConfirmed;
         document.getElementById('res-code').innerText = scannedText;
+
+        // Pre-fill Check-In Checkbox and Comment
+        document.getElementById('checkin-checkbox').checked = data.isCheckedIn;
+        document.getElementById('comment-input').value = data.comment || "";
+        document.getElementById('checkin-section').style.display = 'block';
       } else {
         card.className = 'status-invalid';
         document.getElementById('res-name').innerText = 'INVALID TICKET';
         document.getElementById('res-count').innerText = '-';
         document.getElementById('res-payment').innerText = '-';
         document.getElementById('res-code').innerText = data.message || scannedText;
+        document.getElementById('checkin-section').style.display = 'none';
       }
+    }
+
+    function saveCheckIn() {
+      const isCheckedIn = document.getElementById('checkin-checkbox').checked;
+      const commentText = document.getElementById('comment-input').value;
+      const saveBtn = document.getElementById('save-btn');
+      const statusDiv = document.getElementById('save-status');
+
+      saveBtn.disabled = true;
+      statusDiv.innerText = "Saving to Google Sheet...";
+
+      const requestUrl = API_URL 
+        + "?action=updateCheckIn"
+        + "&ticketCode=" + encodeURIComponent(currentTicketCode)
+        + "&isCheckedIn=" + isCheckedIn
+        + "&comment=" + encodeURIComponent(commentText);
+
+      fetch(requestUrl)
+        .then(res => res.json())
+        .then(data => {
+          saveBtn.disabled = false;
+          if (data.success) {
+            statusDiv.innerText = "✅ " + data.message;
+          } else {
+            statusDiv.innerText = "❌ " + data.message;
+          }
+        })
+        .catch(err => {
+          saveBtn.disabled = false;
+          statusDiv.innerText = "❌ Error saving: " + err.message;
+        });
     }
 
     function handleError(err) {
