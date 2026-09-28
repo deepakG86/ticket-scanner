@@ -116,17 +116,24 @@
       if (html5QrCode) {
         html5QrCode.pause(true);
       }
-  
-      // Construct GET URL with ticket code query parameter
+      
       const requestUrl = API_URL + "?ticketCode=" + encodeURIComponent(decodedText);
     
-      fetch(requestUrl)
-        .then(res => {
-          if (!res.ok) throw new Error("HTTP error " + res.status);
-          return res.json();
-        })
-        .then(data => displayResult(data, decodedText))
-        .catch(err => handleError(err));
+      fetch(requestUrl, {
+        method: "GET",
+        redirect: "follow"
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Server responded with status " + response.status);
+        }
+        return response.json();
+      })
+      .then(data => displayResult(data, decodedText))
+      .catch(err => {
+        alert("Connection Error: " + err.message + "\n\nEnsure Web App access is set to 'Anyone' and permissions are authorized in Apps Script.");
+        resetScanner();
+      });
     }
 
     function displayResult(data, scannedText) {
