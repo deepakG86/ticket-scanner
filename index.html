@@ -147,7 +147,8 @@
   <script>
     // PASTE YOUR APPS SCRIPT WEB APP URL HERE:
     const API_URL = "https://script.google.com/macros/s/AKfycbxQCTfTj1hUYNS68EJaPyDLTI7fSnME6N11g3rrgNf58Bc2YNiNMppMimRBAQFKRzy8uA/exec";
-
+    const API_SECRET = "WhiskeyIsAnAshkMushk@132403";
+    
     let html5QrCode;
     let currentTicketCode = "";
 
@@ -173,8 +174,12 @@
       }
       
       currentTicketCode = decodedText;
-      const requestUrl = API_URL + "?action=check&ticketCode=" + encodeURIComponent(decodedText);
-
+      // Append apiKey parameter to the request URL
+      const requestUrl = API_URL 
+        + "?action=check"
+        + "&apiKey=" + encodeURIComponent(API_SECRET)
+        + "&ticketCode=" + encodeURIComponent(decodedText);
+      
       fetch(requestUrl)
         .then(res => res.json())
         .then(data => displayResult(data, decodedText))
@@ -216,8 +221,10 @@
       saveBtn.disabled = true;
       statusDiv.innerText = "Saving to Google Sheet...";
 
+      // Append apiKey parameter to the update request URL
       const requestUrl = API_URL 
         + "?action=updateCheckIn"
+        + "&apiKey=" + encodeURIComponent(API_SECRET)
         + "&ticketCode=" + encodeURIComponent(currentTicketCode)
         + "&isCheckedIn=" + isCheckedIn
         + "&comment=" + encodeURIComponent(commentText);
